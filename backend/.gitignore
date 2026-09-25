@@ -1,0 +1,52 @@
+# Byte-compiled cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Environment variables
+.env
+.env.*
+*.env
+!.env.example
+!deployment/.env.db.example
+!deployment/.env.s3.example
+.flaskenv
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Distribution and packaging
+dist/
+build/
+*.egg-info/
+*.egg
+
+# IDE and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Databases
+*.db
+*.sqlite3
+
+# Logs
+*.log
+logs/
+
+# OS generated files
+.DS_Store
+Thumbs.db

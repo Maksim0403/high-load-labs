@@ -1,0 +1,46 @@
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: logiflow_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - seaweedfs
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.20
+    container_name: logiflow_s3_storage
+    ports:
+      - "8333:8333"
+      - "23646:23646"
+    command: "mini -dir=/data"
+    volumes:
+      - s3_data:/data
+    restart: unless-stopped
+
+  s3-init:
+    image: amazon/aws-cli:2.34.30
+    container_name: logiflow_s3_init
+    depends_on:
+      - seaweedfs
+    environment:
+      - AWS_ACCESS_KEY_ID=dummykey
+      - AWS_SECRET_ACCESS_KEY=dummysecret
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./policy.json:/tmp/policy.json
+      - ../public:/tmp/public
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "
+      sleep 5;
+      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://public-images;
+      aws --endpoint-url http://seaweedfs:8333 s3api put-bucket-policy --bucket public-images --policy file:///tmp/policy.json;
+      aws --endpoint-url http://seaweedfs:8333 s3 sync /tmp/public s3://public-images --delete;
+      echo 'S3 Bucket initialized successfully!';
+      "
+
+volumes:
+  s3_data:

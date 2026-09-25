@@ -1,0 +1,7 @@
+line-length = 79
+target-version = "py313"
+
+[lint]
+select = ["E", "W", "F", "I", "PL"]
+ignore = []
+fixable = ["ALL"]

@@ -1,0 +1,63 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: logiflow_db
+    restart: always
+    env_file:
+      - .env.db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile
+    container_name: logiflow_backend
+    restart: always
+    depends_on:
+      - db
+      - seaweedfs
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.20
+    container_name: logiflow_s3_storage
+    ports:
+      - "8333:8333"    # S3 API
+      - "8888:8888"    # Filer UI / API
+      - "23646:23646"
+    command: "mini -dir=/data"
+    volumes:
+      - seaweedfs_data:/data
+    restart: unless-stopped
+
+  s3-init:
+    image: amazon/aws-cli:2.34.30
+    container_name: logiflow_s3_init
+    depends_on:
+      - seaweedfs
+    env_file:
+      - ../.env
+    environment:
+      - AWS_ACCESS_KEY_ID=any
+      - AWS_SECRET_ACCESS_KEY=any
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./policy.json:/tmp/policy.json
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "
+      sleep 5;
+      aws --endpoint-url http://seaweedfs:8333 s3 mb s3://$${S3_BUCKET_NAME} || true;
+      aws --endpoint-url http://seaweedfs:8333 s3api put-bucket-policy --bucket $${S3_BUCKET_NAME} --policy file:///tmp/policy.json;
+      echo 'S3 Bucket initialized successfully!';
+      "
+
+volumes:
+  postgres_data:
+  seaweedfs_data:

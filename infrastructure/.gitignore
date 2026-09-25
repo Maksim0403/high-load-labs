@@ -1,0 +1,27 @@
+# Environment files
+.env
+.env.*
+!.env.backend.example
+!.env.db.example
+!.env.pgadmin.example
+
+# JetBrains IDE
+.idea/
+*.iml
+
+# VS Code IDE
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
