@@ -8,6 +8,14 @@ from app.enums import OrderStatus, RouteStatusEnum, UserRole
 
 
 @pytest.mark.asyncio
+async def test_response_identifies_backend_instance(client: AsyncClient):
+    response = await client.get("/api/v1/health")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.headers["x-instance-id"]
+
+
+@pytest.mark.asyncio
 async def test_manager_access_to_any_order(client: AsyncClient):
     client_reg = {
         "email": "client@example.com",

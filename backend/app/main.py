@@ -2,9 +2,19 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 from app.api.v1.api import api_router
 from app.core.config import settings
+
+
+class InstanceIdMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Instance-ID"] = settings.INSTANCE_ID
+        return response
 
 
 @asynccontextmanager
@@ -24,6 +34,8 @@ app = FastAPI(
     redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan,
 )
+
+app.add_middleware(InstanceIdMiddleware)
 
 if settings.CORS_ORIGINS:
     app.add_middleware(

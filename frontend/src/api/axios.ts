@@ -9,4 +9,14 @@ const apiClient = axios.create({
   },
 })
 
+apiClient.interceptors.response.use((response) => {
+  const instanceId = response.headers['x-instance-id']
+  if (instanceId) {
+    window.dispatchEvent(
+      new CustomEvent('logiflow:instance', { detail: instanceId }),
+    )
+  }
+  return response
+})
+
 export default apiClient

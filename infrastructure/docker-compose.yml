@@ -28,7 +28,6 @@ services:
     build:
       context: ../backend
       dockerfile: ../backend/deployment/Dockerfile
-    container_name: logiflow_backend
     restart: unless-stopped
     depends_on:
       - db
