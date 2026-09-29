@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     DEBUG: bool = False
     INSTANCE_ID: str = socket.gethostname()
+    LAB3_DELAY_MS: int = 0
 
     DB_USER: str
     DB_PASSWORD: str

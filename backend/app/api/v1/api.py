@@ -1,14 +1,11 @@
 from fastapi import APIRouter
 
+from app.api.health import router as health_router
 from app.api.v1.routes import auth, dashboard, order, vehicle
 
 api_router = APIRouter()
 
-
-@api_router.get("/health", tags=["system"])
-async def health_check():
-    return {"status": "ok"}
-
+api_router.include_router(health_router)
 
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(

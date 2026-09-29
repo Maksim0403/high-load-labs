@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 import pytest
 from fastapi import status
 from httpx import AsyncClient
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.enums import OrderStatus, RouteStatusEnum, UserRole
 
@@ -13,6 +14,33 @@ async def test_response_identifies_backend_instance(client: AsyncClient):
 
     assert response.status_code == status.HTTP_200_OK
     assert response.headers["x-instance-id"]
+
+
+@pytest.mark.asyncio
+async def test_root_readiness_checks_database(client: AsyncClient):
+    response = await client.get("/health")
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {
+        "status": "ok",
+        "checks": {"database": "ok"},
+    }
+    assert response.headers["x-instance-id"]
+
+
+@pytest.mark.asyncio
+async def test_root_readiness_reports_database_failure(
+    client: AsyncClient, db_session, monkeypatch
+):
+    async def fail_execute(statement):
+        raise SQLAlchemyError("database offline")
+
+    monkeypatch.setattr(db_session, "execute", fail_execute)
+
+    response = await client.get("/health")
+
+    assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+    assert response.json() == {"detail": "Database unavailable"}
 
 
 @pytest.mark.asyncio
