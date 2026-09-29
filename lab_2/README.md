@@ -48,23 +48,32 @@ context. Змінні `order`, `current_user` і `order_in` живуть лиш�
 Compose генерує різний hostname для кожної replica, а middleware повертає його
 як `X-Instance-ID`.
 
-Запуск:
+Запуск у PowerShell:
 
-```bash
-cd infrastructure
+```powershell
+Set-Location .\infrastructure
 docker compose up --build --scale backend=2 -d
 docker compose exec backend alembic upgrade head
 ```
+
+For local testing over `http://localhost`, set `COOKIE_SECURE=False` in
+`infrastructure/.env.backend` before starting the backend. Secure cookies are
+not sent over plain HTTP. Keep `COOKIE_SECURE=True` when serving the app over
+HTTPS.
+
+If Alembic reports `Can't locate revision`, the database points to a migration
+that is not present in the current checkout. Restore that migration or recreate
+the database only if its contents can be discarded; do not use `stamp head` to
+hide a schema mismatch.
 
 ## Cross-instance consistency
 
 Перед запуском переконайтеся, що зареєстрований тестовий користувач не потрібен:
 скрипт створює одноразовий email. Потрібні Python 3.13 та `httpx` із dev-залежностей
-backend.
+backend. From the repository root, run:
 
-```bash
-cd ..
-uv run python lab_2/resilience_test.py --base-url http://localhost
+```powershell
+uv run --project .\backend --group dev python .\lab_2\resilience_test.py --base-url http://localhost
 ```
 
 У виводі мають бути різні значення `X-Instance-ID` хоча б для частини запитів,
@@ -75,18 +84,17 @@ uv run python lab_2/resilience_test.py --base-url http://localhost
 
 Сценарій можна виконати автоматично:
 
-```bash
-uv run python lab_2/resilience_test.py \
-  --base-url http://localhost \
-  --stop-instance "$(docker compose -f infrastructure/docker-compose.yml ps -q backend | head -n 1)"
+```powershell
+$instance = docker compose -f .\infrastructure\docker-compose.yml ps -q backend | Select-Object -First 1
+uv run --project .\backend --group dev python .\lab_2\resilience_test.py --base-url http://localhost --stop-instance $instance
 ```
 
 Скрипт виконує `docker stop` для однієї replica, після чого повторює `GET`
 через той самий gateway. Інша replica читає той самий рядок PostgreSQL і
 повертає оновлений title. Для відновлення зупиненого сервісу:
 
-```bash
-docker compose -f infrastructure/docker-compose.yml up --scale backend=2 -d
+```powershell
+docker compose -f .\infrastructure\docker-compose.yml up -d --scale backend=2 backend
 ```
 
 Критерії успіху:

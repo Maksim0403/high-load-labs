@@ -2,6 +2,7 @@
 
 import argparse
 import subprocess
+import time
 import uuid
 
 import httpx
@@ -17,6 +18,30 @@ def request(client: httpx.Client, method: str, path: str, **kwargs):
     return response
 
 
+def request_after_failover(
+    client: httpx.Client, method: str, path: str, **kwargs
+):
+    last_error = None
+    for attempt in range(8):
+        try:
+            return request(client, method, path, timeout=2, **kwargs)
+        except httpx.TimeoutException as exc:
+            last_error = exc
+        except httpx.NetworkError as exc:
+            last_error = exc
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code not in {502, 503, 504}:
+                raise
+            last_error = exc
+
+        if attempt < 7:
+            time.sleep(1)
+
+    raise RuntimeError(
+        f"Gateway did not recover after stopping a backend instance: {path}"
+    ) from last_error
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--base-url", default="http://localhost")
@@ -24,6 +49,7 @@ def main() -> None:
     args = parser.parse_args()
 
     email = f"lab2-{uuid.uuid4().hex[:12]}@example.com"
+    phone_number = f"+38099{uuid.uuid4().int % 1_000_000:06d}"
     password = "password123"
     with httpx.Client(base_url=args.base_url, timeout=10) as client:
         request(client, "GET", "/api/v1/health")
@@ -36,7 +62,7 @@ def main() -> None:
                 "password": password,
                 "full_name": "Lab 2 Client",
                 "role": "client",
-                "phone_number": "+380990000000",
+                "phone_number": phone_number,
             },
         )
         request(
@@ -65,7 +91,9 @@ def main() -> None:
 
         if args.stop_instance:
             subprocess.run(["docker", "stop", args.stop_instance], check=True)
-            recovered = request(client, "GET", f"/api/v1/orders/{order_id}").json()
+            recovered = request_after_failover(
+                client, "GET", f"/api/v1/orders/{order_id}"
+            ).json()
             assert recovered["title"] == final["title"]
 
     print("Перевірка завершена: стан збережено у PostgreSQL.")
