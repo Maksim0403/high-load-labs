@@ -1,5 +1,3 @@
-"""Concurrent load generator for the lab 3 Nginx upstream."""
-
 import argparse
 import asyncio
 import csv

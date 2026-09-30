@@ -8,7 +8,7 @@ import uuid
 import httpx
 
 
-def request(client: httpx.Client, method: str, path: str, **kwargs):
+def request(client: httpx.Client, method: str, path: str, **kwargs) -> httpx.Response:
     response = client.request(method, path, **kwargs)
     response.raise_for_status()
     instance = response.headers.get("x-instance-id")
@@ -18,9 +18,14 @@ def request(client: httpx.Client, method: str, path: str, **kwargs):
     return response
 
 
-def request_after_failover(
-    client: httpx.Client, method: str, path: str, **kwargs
-):
+def instance_id(response: httpx.Response) -> str:
+    value = response.headers.get("x-instance-id")
+    if not value:
+        raise RuntimeError("Відповідь не містить X-Instance-ID")
+    return value
+
+
+def request_after_failover(client: httpx.Client, method: str, path: str, **kwargs):
     last_error = None
     for attempt in range(8):
         try:
@@ -76,27 +81,73 @@ def main() -> None:
             "POST",
             "/api/v1/orders/",
             json={"title": "Stateless flow", "weight": 10, "distance": 50},
-        ).json()
-        order_id = created["id"]
-        request(client, "GET", f"/api/v1/orders/{order_id}")
+        )
+        create_instance = instance_id(created)
+        order_id = created.json()["id"]
+        first_read = request(client, "GET", f"/api/v1/orders/{order_id}")
+        if instance_id(first_read) == create_instance:
+            raise AssertionError(
+                "POST and GET used the same instance; cross-instance "
+                "consistency was not demonstrated"
+            )
+        first_read_data = first_read.json()
+        if first_read_data["title"] != "Stateless flow":
+            raise AssertionError("GET did not return the created order")
+
         updated = request(
             client,
             "PATCH",
             f"/api/v1/orders/{order_id}",
             json={"title": "Updated on shared storage"},
-        ).json()
-        assert updated["title"] == "Updated on shared storage"
-        final = request(client, "GET", f"/api/v1/orders/{order_id}").json()
-        assert final["title"] == updated["title"]
+        )
+        update_instance = instance_id(updated)
+        if updated.json()["title"] != "Updated on shared storage":
+            raise AssertionError("PATCH did not update the order")
+        final = request(client, "GET", f"/api/v1/orders/{order_id}")
+        if instance_id(final) == update_instance:
+            raise AssertionError(
+                "PATCH and final GET used the same instance; cross-instance "
+                "consistency was not demonstrated"
+            )
+        if final.json()["title"] != "Updated on shared storage":
+            raise AssertionError("Final GET did not return the shared update")
 
         if args.stop_instance:
-            subprocess.run(["docker", "stop", args.stop_instance], check=True)
-            recovered = request_after_failover(
-                client, "GET", f"/api/v1/orders/{order_id}"
-            ).json()
-            assert recovered["title"] == final["title"]
+            stopped_hostname = subprocess.run(
+                [
+                    "docker",
+                    "inspect",
+                    "--format",
+                    "{{.Config.Hostname}}",
+                    args.stop_instance,
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            stopped = False
+            try:
+                subprocess.run(["docker", "stop", args.stop_instance], check=True)
+                stopped = True
+                recovered = request_after_failover(
+                    client, "GET", f"/api/v1/orders/{order_id}"
+                )
+                if instance_id(recovered) == stopped_hostname:
+                    raise AssertionError(
+                        "The stopped instance handled the failover request"
+                    )
+                if recovered.json()["title"] != "Updated on shared storage":
+                    raise AssertionError(
+                        "Failover GET did not return the persisted order"
+                    )
+            finally:
+                if stopped:
+                    subprocess.run(["docker", "start", args.stop_instance], check=True)
 
-    print("Перевірка завершена: стан збережено у PostgreSQL.")
+    print(
+        "Перевірка завершена: cross-instance consistency підтверджено, "
+        "стан збережено у PostgreSQL."
+    )
 
 
 if __name__ == "__main__":
