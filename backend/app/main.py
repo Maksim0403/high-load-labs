@@ -10,6 +10,7 @@ from starlette.responses import Response
 from app.api.health import health_check
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.services.order_cache import order_cache
 
 
 class InstanceIdMiddleware(BaseHTTPMiddleware):
@@ -33,7 +34,10 @@ async def lifespan(app: FastAPI):
         print(f"🚀 Swagger UI: http://localhost:8000{app.docs_url}")
         print("🔗 API Base:   http://localhost:8000/api/v1")
         print("=" * 50 + "\n")
-    yield
+    try:
+        yield
+    finally:
+        await order_cache.close()
 
 
 app = FastAPI(

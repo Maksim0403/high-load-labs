@@ -3,7 +3,7 @@ import os
 import socket
 from typing import Any, List
 
-from pydantic import PostgresDsn, computed_field, field_validator
+from pydantic import Field, PostgresDsn, computed_field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = os.path.dirname(
@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     INSTANCE_ID: str = socket.gethostname()
     LAB3_DELAY_MS: int = 0
+    ORDER_CACHE_ENABLED: bool = False
+    REDIS_URL: str = "redis://localhost:6379/0"
+    ORDER_CACHE_TTL_SECONDS: int = Field(default=60, gt=0)
 
     DB_USER: str
     DB_PASSWORD: str

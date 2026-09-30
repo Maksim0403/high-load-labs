@@ -84,3 +84,10 @@ uv run --project .\backend --group dev python .\lab_2\resilience_test.py --base-
 
 Для локального HTTP встановіть `COOKIE_SECURE=False` у
 `infrastructure/.env.backend`; для HTTPS залишайте `True`.
+
+## Лабораторна робота № 4: розподілене кешування
+
+У ЛР № 4 додано Redis Cache-Aside для `GET /api/v1/orders/{id}` із TTL,
+інвалідацією після зміни/видалення замовлення, `X-Cache` метриками та
+fallback на PostgreSQL. Інструкція розгортання, тести й обґрунтування:
+[`lab_4/README.md`](lab_4/README.md).

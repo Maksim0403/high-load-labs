@@ -11,6 +11,7 @@ from app.schemas.order import OrderUpdate
 from app.schemas.route import RouteUpdate
 from app.schemas.route_status import RouteStatusCreate
 from app.services.invoice_service import invoice_service
+from app.services.order_cache import order_cache
 from app.services.route_service import route_service
 from app.services.vehicle_service import vehicle_service
 
@@ -92,6 +93,8 @@ class RouteStatusService:
                 updated_order = await crud_order.update_order(
                     db, updated_route.order, order_update
                 )
+                if updated_order.id is not None:
+                    await order_cache.invalidate(updated_order.id)
                 if updated_order.status == OrderStatus.COMPLETED:
                     await self._sync_invoice(db, updated_order)
 

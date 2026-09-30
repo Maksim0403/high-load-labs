@@ -7,6 +7,7 @@ from app.crud import order as crud_order
 from app.enums import OrderStatus, UserRole
 from app.schemas.order import OrderCreate, OrderUpdate
 from app.services.invoice_service import invoice_service
+from app.services.order_cache import order_cache
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,8 @@ class OrderService:
 
         old_status = order.status
         updated_order = await crud_order.update_order(db, order, order_in)
+        if updated_order.id is not None:
+            await order_cache.invalidate(updated_order.id)
 
         if (
             updated_order.status == OrderStatus.COMPLETED
@@ -81,6 +84,7 @@ class OrderService:
                 status_code=409, detail="Only pending orders can be deleted"
             )
         await crud_order.delete_order(db, order)
+        await order_cache.invalidate(order_id)
 
     async def confirm_receipt(
         self, db: AsyncSession, order_id: int, current_user
@@ -114,6 +118,8 @@ class OrderService:
             )
 
         updated_order = await crud_order.confirm_order_receipt(db, order)
+        if updated_order.id is not None:
+            await order_cache.invalidate(updated_order.id)
 
         try:
             await invoice_service.add_order_to_invoice(db, updated_order)

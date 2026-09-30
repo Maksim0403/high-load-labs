@@ -1,12 +1,13 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api import deps
 from app.enums import UserRole
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderOut, OrderUpdate
+from app.services.order_cache import order_cache
 from app.services.order_service import order_service
 
 router = APIRouter()
@@ -42,15 +43,30 @@ async def get_orders(
 @router.get("/{order_id}", response_model=OrderOut)
 async def get_order(
     order_id: int,
+    response: Response,
     db: AsyncSession = Depends(deps.get_db),
     current_user: User = Depends(deps.get_current_user),
 ):
+    cached_order, cache_status = await order_cache.get(order_id)
+    if cached_order is not None:
+        if (
+            current_user.role == UserRole.CLIENT
+            and cached_order.owner_id != current_user.id
+        ):
+            raise HTTPException(status_code=403, detail="Access denied")
+        response.headers["X-Cache"] = cache_status
+        return cached_order
+
     order = await order_service.get_order_or_404(db, order_id)
     if (
         current_user.role == UserRole.CLIENT
         and order.owner_id != current_user.id
     ):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    if cache_status == "MISS":
+        cache_status = await order_cache.set(OrderOut.model_validate(order))
+    response.headers["X-Cache"] = cache_status
     return order
 
 
